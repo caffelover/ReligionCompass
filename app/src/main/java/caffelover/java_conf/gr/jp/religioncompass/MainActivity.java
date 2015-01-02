@@ -1,5 +1,7 @@
 package caffelover.java_conf.gr.jp.religioncompass;
 
+import android.database.sqlite.SQLiteCursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -15,6 +17,7 @@ import android.view.animation.Animation;
 import android.view.animation.RotateAnimation;
 import android.widget.TextView;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import org.w3c.dom.Text;
 
@@ -22,16 +25,16 @@ import java.util.List;
 
 
 public class MainActivity extends ActionBarActivity implements LocationListener,SensorEventListener{
-    private double dest_latitude = -90.0D;
+    private double dest_latitude = 0.0D;
     private double dest_longitude = 0.0D;
     private float currentDegree = 0.0f;
     private boolean mIsMagSensor;
     private boolean mIsAccSensor;
     private double angle_to_dest = 0.0d;
-    private String destination = "南極";
     private ImageView image;
     private LocationManager mLocationManager;
     private SensorManager mSensorManager;
+    private SimpleDatabaseHelper helper = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,14 +49,48 @@ public class MainActivity extends ActionBarActivity implements LocationListener,
         //センサーマネージャ取得
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
 
-        TextView textViewDestination = (TextView)findViewById(R.id.destination);
+        //DBヘルパー準備
+        helper = new SimpleDatabaseHelper(this);
+        SQLiteDatabase db = helper.getReadableDatabase();
+
+        //目的地データの取得
+        String sql = "select * from HOLY_LAND a " +
+                "inner join " +
+                "LAND_RELIGION b " +
+                "on a.DEF_FLG = b.DEF_FLG " +
+                "and a.HOLY_ID = b.HOLY_ID " +
+                "where a.SHOW_FLG = 1;";
+
+        SQLiteCursor c = (SQLiteCursor)db.rawQuery(sql,null);
+
+        String holy_name = "";
+        String religion_name = "";
+
+        if(c.moveToFirst()) {
+            holy_name = c.getString(c.getColumnIndex("HOLY_NAME_JP")); //目的地名
+            dest_latitude = c.getDouble(c.getColumnIndex("LATITUDE")); //緯度
+            dest_longitude = c.getDouble(c.getColumnIndex("LONGITUDE")); //経度
+
+            for (int i = 0; i < c.getCount(); i++) {
+                religion_name = religion_name + c.getString(c.getColumnIndex("RELIGION_NAME_JP")) + " " ;
+
+                if(c.getString(c.getColumnIndex("PERSUASION_JP")).length() != 0){
+                    religion_name = religion_name + "(" + c.getString(c.getColumnIndex("PERSUASION_JP")) + ")" ;
+                }
+                religion_name = religion_name + " ";
+                c.moveToNext();
+            }
+        }
+
+        //目的地データのセットと表示
+        TextView textViewHoly = (TextView)findViewById(R.id.db_holy);
+        TextView textViewReligion1 = (TextView)findViewById(R.id.db_religion1);
         TextView textViewDestLa = (TextView)findViewById(R.id.dest_latitude);
         TextView textViewDestLong = (TextView)findViewById(R.id.dest_longitude);
-
-        textViewDestination.setText("目的地: " + destination);
+        textViewHoly.setText("目的地: " + holy_name);
         textViewDestLa.setText(String.valueOf("目的緯度: " + dest_latitude));
         textViewDestLong.setText(String.valueOf("目的経度: " + dest_longitude));
-
+        textViewReligion1.setText("宗教: " + religion_name);
     }
 
     @Override
